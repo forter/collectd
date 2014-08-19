@@ -48,6 +48,7 @@ struct riemann_host {
 	_Bool			 always_append_ds;
 	char			*node;
 	char			*service;
+    char            *eventServicePrefix;
 	_Bool			 use_tcp;
 	int			 s;
 	double			 ttl_factor;
@@ -457,11 +458,19 @@ static Event *riemann_value_to_protobuf (struct riemann_host const *host, /* {{{
 			/* host = */ "", vl->plugin, vl->plugin_instance,
 			vl->type, vl->type_instance);
 	if (host->always_append_ds || (ds->ds_num > 1))
-		ssnprintf (service_buffer, sizeof (service_buffer),
-				"%s/%s", &name_buffer[1], ds->ds[index].name);
+        if (host->eventServicePrefix == NULL || host->eventServicePrefix[0] == '\0')
+            ssnprintf (service_buffer, sizeof (service_buffer),
+                   "%s/%s", &name_buffer[1], ds->ds[index].name);
+        else
+            ssnprintf (service_buffer, sizeof (service_buffer),
+                       "%s/%s/%s", host->eventServicePrefix, &name_buffer[1], ds->ds[index].name);
 	else
-		sstrncpy (service_buffer, &name_buffer[1],
-				sizeof (service_buffer));
+        if (host->eventServicePrefix == NULL || host->eventServicePrefix[0] == '\0')
+            sstrncpy (service_buffer, &name_buffer[1],
+                      sizeof (service_buffer));
+        else
+            ssnprintf (service_buffer, sizeof (service_buffer),
+                       "%s/%s", host->eventServicePrefix, &name_buffer[1]);
 
 	event->service = strdup (service_buffer);
 
@@ -633,6 +642,10 @@ riemann_config_node(oconfig_item_t *ci)
 		if (strcasecmp ("Host", child->key) == 0) {
 			status = cf_util_get_string (child, &host->node);
 			if (status != 0)
+				break;
+        } else if (strcasecmp ("EventServicePrefix", child->key) == 0) {
+            status = cf_util_get_string (child, &host->eventServicePrefix);
+            if (status != 0)
 				break;
 		} else if (strcasecmp ("Port", child->key) == 0) {
 			status = cf_util_get_service (child, &host->service);
